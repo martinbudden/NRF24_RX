@@ -1,0 +1,35 @@
+#######################################
+# Syntax Coloring Map For NRF24_RX
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+NRF24_RX	KEYWORD1
+H8_3D	KEYWORD1
+protocol_t	KEYWORD1
+received_t	KEYWORD1
+
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+NRF24_RX	KEYWORD2
+H8_3D	KEYWORD2
+
+protocolName	KEYWORD2
+setRcDataFromPayload	KEYWORD2
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+NRF24_ROLL	LITERAL1
+NRF24_PITCH	LITERAL1
+NRF24_THROTTLE	LITERAL1
+NRF24_YAW	LITERAL1
+NRF24_AUX1	LITERAL1
+NRF24_AUX2	LITERAL1
