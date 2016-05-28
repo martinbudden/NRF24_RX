@@ -6,6 +6,8 @@
 # Datatypes (KEYWORD1)
 #######################################
 
+# orange
+
 NRF24_RX	KEYWORD1
 H8_3D	KEYWORD1
 protocol_t	KEYWORD1
@@ -16,8 +18,7 @@ received_t	KEYWORD1
 # Methods and Functions (KEYWORD2)
 #######################################
 
-NRF24_RX	KEYWORD2
-H8_3D	KEYWORD2
+# orange
 
 protocolName	KEYWORD2
 setRcDataFromPayload	KEYWORD2
@@ -26,6 +27,17 @@ setRcDataFromPayload	KEYWORD2
 #######################################
 # Constants (LITERAL1)
 #######################################
+
+# blue
+
+V202_250K	LITERAL1
+V202_1M	LITERAL1
+SYMA_X	LITERAL1
+SYMA_X5C	LITERAL1
+CX10	LITERAL1
+CX10A	LITERAL1
+H8_3D_H20	LITERAL1
+H8_3D_DEVIATION	LITERAL1
 
 NRF24_ROLL	LITERAL1
 NRF24_PITCH	LITERAL1

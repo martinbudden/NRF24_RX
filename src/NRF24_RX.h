@@ -1,7 +1,9 @@
 /*
  * This file is part of the Arduino NRF24_RX library.
  *
- * NRF24_RX is free software: you can redistribute it and/or modify
+ * Written by Martin Budden
+ *
+ * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
@@ -11,6 +13,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License, <http://www.gnu.org/licenses/>, for
  * more details.
+ *
+ * All text above and this condition must be included in any redistribution.
  */
 
 #pragma once
@@ -66,7 +70,7 @@ public:
         SYMA_X5C,
         CX10,
         CX10A,
-        H8_3D,
+        H8_3D_H20,
         H8_3D_DEVIATION,
         PROTOCOL_COUNT
     } protocol_e;
@@ -85,6 +89,7 @@ protected:
     uint32_t hopTimeout;
     uint32_t timeOfLastHop;
     uint8_t payload[NRF24L01_MAX_PAYLOAD_SIZE+32];
+    uint16_t payloadCrc;
     uint8_t payloadSize;
     enum {RX_TX_ADDR_LEN = 5};
     uint8_t rxTxAddr[RX_TX_ADDR_LEN];
@@ -96,11 +101,16 @@ protected:
 public:
     virtual ~NRF24_RX();
     NRF24_RX(NRF24L01* _nrf24);
-    virtual const char* protocolName(void) const = 0;
-    virtual void begin(NRF24_RX::protocol_e protocol, const uint8_t* nrf24_id) = 0;
+    NRF24_RX(uint8_t ce_pin, uint8_t csn_pin);
+    void initialize(uint8_t baseConfig);
+    virtual void begin(int protocol, const uint8_t* nrf24_id = 0) = 0;
     virtual void setRcDataFromPayload(uint16_t *rcData) const = 0;
     virtual received_e dataReceived(void) = 0;
-    const uint8_t *payloadPtr(void);
-    int getChannel(void);
+    // debugging and instrumentation functions
+    const uint8_t *payloadPtr(void) const {return payload;}
+    int getPayloadSize(void) const {return payloadSize;}
+    uint16_t getPayloadCrc(void) const {return payloadCrc;}
+    int getChannel(void) const {return nrf24->getChannel();}
+    uint8_t getProtocol(void)const {return protocol;}
 };
 

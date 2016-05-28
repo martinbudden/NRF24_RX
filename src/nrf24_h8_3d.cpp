@@ -1,7 +1,9 @@
 /*
  * This file is part of the Arduino NRF24_RX library.
  *
- * NRF24_RX is free software: you can redistribute it and/or modify
+ * Written by Martin Budden
+ *
+ * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
@@ -11,6 +13,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License, <http://www.gnu.org/licenses/>, for
  * more details.
+ *
+ * All text above and this condition must be included in any redistribution.
  */
 
 // This file borrows heavily from project Deviation,
@@ -73,23 +77,21 @@ H8_3D::~H8_3D() {}
 H8_3D::H8_3D(NRF24L01* _nrf24)
     : NRF24_RX(_nrf24) {}
 
-const char* H8_3D::protocolName(void) const
-{
-    return protocol == NRF24_RX::H8_3D ? "H8_3D" : "H8_3D_DEV";
-}
+H8_3D::H8_3D(uint8_t _ce_pin, uint8_t _csn_pin)
+    : NRF24_RX(_ce_pin, _csn_pin) {}
 
 bool H8_3D::checkBindPacket(void)
 {
     bool bindPacket = false;
     if ((payload[5] == 0x00) && (payload[6] == 0x00) && (payload[7] == 0x01)) {
-        const uint32_t checkSum = (payload[1] + payload[2] + payload[3] + payload[4]) & 0xff;
-        if (checkSum == payload[8] && payload[19] == 0) {
+        //const uint32_t checkSum = (payload[1] + payload[2] + payload[3] + payload[4]) & 0xff;
+        //if (checkSum == payload[8] && payload[19] == 0) {
             bindPacket = true;
             txId[0] = payload[1];
             txId[1] = payload[2];
             txId[2] = payload[3];
             txId[3] = payload[4];
-        }
+            //}
     }
     return bindPacket;
 }
@@ -159,8 +161,7 @@ void H8_3D::hopToNextChannel(void)
 void H8_3D::setHoppingChannels(void)
 {
     // Kludge to allow bugged deviation TX H8_3D implementation to work
-//    const int bitShift = protocol == NRF24_RX::H8_3D_DEVIATION ? 8 : 4;
-    const int bitShift = 4;
+    const int bitShift = (protocol == NRF24_RX::H8_3D_DEVIATION) ? 8 : 4;
     rfChannels[0] = 0x06 + ((txId[0]>>bitShift) +(txId[0] & 0x0f)) % 0x0f;
     rfChannels[1] = 0x15 + ((txId[1]>>bitShift) +(txId[1] & 0x0f)) % 0x0f;
     rfChannels[2] = 0x24 + ((txId[2]>>bitShift) +(txId[2] & 0x0f)) % 0x0f;
@@ -177,14 +178,28 @@ void H8_3D::setBound(void)
     nrf24->setChannel(rfChannels[0]);
 }
 
+bool H8_3D::crcOK(uint16_t crc) const
+{
+    if (payload[payloadSize - CRC_LEN] != (crc >> 8)) {
+        return false;
+    }
+    if (payload[payloadSize - CRC_LEN + 1] != (crc & 0xff)) {
+        return false;
+    }
+    return true;
+}
+
 bool H8_3D::checkSumOK(void) const
 {
+    if (payload[0] != 0x13) {
+        return false;
+    }
     const uint32_t checkSumTxId = (payload[1] + payload[2] + payload[3] + payload[4]) & 0xff;
     if (checkSumTxId != payload[8]) {
         return false;
     }
     uint32_t checkSum = payload[9];
-    for (int ii=10; ii < 19; ++ii) {
+    for (int ii = 10; ii < 19; ++ii) {
         checkSum += payload[ii];
     }
     if ((checkSum & 0xff) != payload[19]) {
@@ -202,20 +217,23 @@ NRF24_RX::received_e H8_3D::dataReceived(void)
     switch (protocolState) {
     case STATE_BIND:
         if (nrf24->readPayloadIfAvailable(payload, payloadSize)) {
-            XN297_UnscramblePayload(payload, payloadSize);
-            const bool bindPacket = checkBindPacket();
-            if (bindPacket) {
-                ret = NRF24_RX::RECEIVED_BIND;
-                setBound();
+            payloadCrc = XN297_UnscramblePayload(payload, payloadSize - CRC_LEN, rxTxAddr);
+            if (crcOK(payloadCrc)) {
+                const bool bindPacket = checkBindPacket();
+                if (bindPacket) {
+                    ret = RECEIVED_BIND;
+                    setBound();
+                }
             }
         }
         break;
     case STATE_DATA:
         // read the payload, processing of payload is deferred
         if (nrf24->readPayloadIfAvailable(payload, payloadSize)) {
-            XN297_UnscramblePayload(payload, payloadSize);
-            if (checkSumOK()) { // NRF24L01 checksum not used, so this is required
-                ret = checkBindPacket() ? NRF24_RX::RECEIVED_BIND : NRF24_RX::RECEIVED_DATA;
+            payloadCrc = XN297_UnscramblePayload(payload, payloadSize - CRC_LEN, rxTxAddr);
+            if (crcOK(payloadCrc)) {
+            //if (checkSumOK()) {
+                ret = checkBindPacket() ? RECEIVED_BIND : RECEIVED_DATA;
             }
         }
         break;
@@ -228,7 +246,7 @@ NRF24_RX::received_e H8_3D::dataReceived(void)
     return ret;
 }
 
-void H8_3D::begin(NRF24_RX::protocol_e _protocol, const uint8_t* nrf24_id)
+void H8_3D::begin(int _protocol, const uint8_t* nrf24_id)
 {
     //static uint8_t rxTxAddr[RX_TX_ADDR_LEN] = {0xc4, 0x57, 0x09, 0x65, 0x21};
     static const uint8_t rxTxAddrXN297[RX_TX_ADDR_LEN] = {0x41, 0xbd, 0x42, 0xd4, 0xc2}; // converted XN297 address
@@ -245,7 +263,8 @@ void H8_3D::begin(NRF24_RX::protocol_e _protocol, const uint8_t* nrf24_id)
     nrf24->writeReg(NRF24L01_03_SETUP_AW, NRF24L01_03_SETUP_AW_5BYTES);   // 5-byte RX/TX address
     nrf24->writeReg(NRF24L01_06_RF_SETUP, NRF24L01_06_RF_SETUP_RF_DR_1Mbps | NRF24L01_06_RF_SETUP_RF_PWR_n12dbm);
     // RX_ADDR for pipes P1-P5 are left at default values
-    nrf24->writeRegisterMulti(NRF24L01_0A_RX_ADDR_P0, rxTxAddrXN297, RX_TX_ADDR_LEN);
+    memcpy(rxTxAddr, rxTxAddrXN297, RX_TX_ADDR_LEN);
+    nrf24->writeRegisterMulti(NRF24L01_0A_RX_ADDR_P0, rxTxAddr, RX_TX_ADDR_LEN);
 //    if ((nrf24_id == 0) || ((nrf24_id[0] | nrf24_id[1] | nrf24_id[2] | nrf24_id[3]) == 0)) {
         rfChannelIndex = RF_BIND_CHANNEL_START;
         nrf24->setChannel(rfChannelIndex);
@@ -257,8 +276,8 @@ void H8_3D::begin(NRF24_RX::protocol_e _protocol, const uint8_t* nrf24_id)
     nrf24->writeReg(NRF24L01_08_OBSERVE_TX, 0x00);
     nrf24->writeReg(NRF24L01_1C_DYNPD, 0x00); // Disable dynamic payload length on all pipes
 
-    payloadSize = PAYLOAD_SIZE + 2; // payload + 2 bytes CRC
-    nrf24->writeReg(NRF24L01_11_RX_PW_P0, payloadSize); // payload + 2 bytes CRC
+    payloadSize = PAYLOAD_SIZE + CRC_LEN; // payload + 2 bytes CRC
+    nrf24->writeReg(NRF24L01_11_RX_PW_P0, payloadSize);
 
     nrf24->setRxMode(); // enter receive mode to start listening for packets
 }
