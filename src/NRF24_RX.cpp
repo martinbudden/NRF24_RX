@@ -39,7 +39,7 @@ void NRF24_RX::initialize(uint8_t baseConfig)
     nrf24->writeReg(NRF24L01_01_EN_AA, 0); // No auto acknowledgment
     nrf24->writeReg(NRF24L01_02_EN_RXADDR, BV(NRF24L01_02_EN_RXADDR_ERX_P0));
     nrf24->writeReg(NRF24L01_03_SETUP_AW, NRF24L01_03_SETUP_AW_5BYTES);   // 5-byte RX/TX address
-    nrf24->writeRegisterMulti(NRF24L01_0A_RX_ADDR_P0, rxTxAddr, RX_TX_ADDR_LEN);
+    nrf24->writeRegisterMulti(NRF24L01_0A_RX_ADDR_P0, rxAddr, RX_ADDR_LEN);
     nrf24->writeReg(NRF24L01_08_OBSERVE_TX, 0x00);
     nrf24->writeReg(NRF24L01_1C_DYNPD, 0x00); // Disable dynamic payload length on all pipes
     nrf24->writeReg(NRF24L01_11_RX_PW_P0, payloadSize);

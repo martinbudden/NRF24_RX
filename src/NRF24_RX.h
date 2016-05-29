@@ -91,8 +91,8 @@ protected:
     uint8_t payload[NRF24L01_MAX_PAYLOAD_SIZE+32];
     uint16_t payloadCrc;
     uint8_t payloadSize;
-    enum {RX_TX_ADDR_LEN = 5};
-    uint8_t rxTxAddr[RX_TX_ADDR_LEN];
+    enum {RX_ADDR_LEN = 5};
+    uint8_t rxAddr[RX_ADDR_LEN];
 protected:
     virtual void setHoppingChannels(void) = 0;
     virtual void setBound(void) = 0;
