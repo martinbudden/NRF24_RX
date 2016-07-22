@@ -14,7 +14,7 @@
  * GNU General Public License, <http://www.gnu.org/licenses/>, for
  * more details.
  *
- * All text above and this condition must be included in any redistribution.
+ * All the above text and this condition must be included in any redistribution.
  */
 
 // This file borrows heavily from project Deviation,
@@ -66,32 +66,23 @@
 #define CX10A_PROTOCOL_PAYLOAD_SIZE 19
 #define ACK_TO_SEND_COUNT 8
 
-const uint8_t CX10::txAddrXN297[RX_ADDR_LEN] = {0x55, 0x0F, 0x71, 0x0C, 0x00}; // converted XN297 address, 0xC710F55 (28 bit)
-const uint8_t CX10::rxAddrXN297[RX_ADDR_LEN] = {0x49, 0x26, 0x87, 0x7d, 0x2f}; // converted XN297 address
+const uint8_t CX10::txAddr[CX10::RX_ADDR_LEN] = {0x55, 0x0F, 0x71, 0x0C, 0x00}; // converted XN297 address, 0xC710F55 (28 bit)
+const uint8_t CX10::rxAddr[CX10::RX_ADDR_LEN] = {0x49, 0x26, 0x87, 0x7d, 0x2f}; // converted XN297 address
 
 
-CX10::CX10(NRF24L01* _nrf24)
-    : NRF24_RX(_nrf24) {}
-
-CX10::CX10(uint8_t _ce_pin, uint8_t _csn_pin)
-    : NRF24_RX(_ce_pin, _csn_pin) {}
-
-/*
- * Returns true if it is a bind packet.
- */
-bool CX10::checkBindPacket(void)
+CX10::CX10(NRF24L01 *_nrf24)
+    : NRF24_RX(_nrf24)
 {
-    if (payload[0] == 0xaa) { // 10101010
-        txId[0] = payload[1];
-        txId[1] = payload[2];
-        txId[2] = payload[3];
-        txId[3] = payload[4];
-        return true;
-    }
-    return false;
+    rfChannels = rfChannelArray;
 }
 
-uint16_t CX10::convertToPwmUnsigned(const uint8_t* pVal)
+CX10::CX10(uint8_t _ce_pin, uint8_t _csn_pin)
+    : NRF24_RX(_ce_pin, _csn_pin)
+{
+    rfChannels = rfChannelArray;
+}
+
+uint16_t CX10::convertToPwmUnsigned(const uint8_t *pVal)
 {
     uint16_t ret = (*(pVal + 1)) & 0x7f; // mask out top bit which is used for a flag for the rudder
     ret = (ret << 8) | *pVal;
@@ -124,15 +115,6 @@ void CX10::setRcDataFromPayload(uint16_t *rcData) const
     rcData[RC_CHANNEL_HEADLESS] = flags1 & FLAG_HEADLESS ? PWM_RANGE_MAX : PWM_RANGE_MIN;
 }
 
-void CX10::hopToNextChannel(void)
-{
-    ++rfChannelIndex;
-    if (rfChannelIndex >= rfChannelCount) {
-        rfChannelIndex = 0;
-    }
-    nrf24->setChannel(rfChannels[rfChannelIndex]);
-}
-
 // The hopping channels are determined by the txId
 void CX10::setHoppingChannels(void)
 {
@@ -142,9 +124,23 @@ void CX10::setHoppingChannels(void)
     rfChannels[3] = 0x40 + (txId[1] >> 4);
 }
 
+/*
+ * Returns true if it is a bind packet.
+ */
+bool CX10::checkBindPacket(void)
+{
+    if (payload[0] == 0xaa) { // 10101010
+        txId[0] = payload[1];
+        txId[1] = payload[2];
+        txId[2] = payload[3];
+        txId[3] = payload[4];
+        return true;
+    }
+    return false;
+}
+
 void CX10::setBound(void)
 {
-    protocolState = STATE_DATA;
     timeOfLastHop = micros();
     setHoppingChannels();
     rfChannelIndex = 0;
@@ -153,10 +149,9 @@ void CX10::setBound(void)
 
 NRF24_RX::received_e CX10::dataReceived()
 {
-    static uint8_t ackCount;
+    static uint8_t ackCount = 0;
     NRF24_RX::received_e ret = RECEIVED_NONE;
     int totalDelayUs;
-    uint32_t timeNowUs;
 
     switch (protocolState) {
     case STATE_BIND:
@@ -180,7 +175,7 @@ NRF24_RX::received_e CX10::dataReceived()
         payload[9] = 0x01;
         nrf24->setChannel(RF_BIND_CHANNEL);
         nrf24->flushTx();
-        XN297_WritePayload(payload, payloadSize, txAddrXN297, nrf24);
+        XN297_WritePayload(payload, payloadSize, txAddr, nrf24);
         nrf24->setTxMode();// enter transmit mode to send the packet
         // wait for the ACK packet to send before changing channel
         static const int fifoDelayUs = 100;
@@ -191,7 +186,7 @@ NRF24_RX::received_e CX10::dataReceived()
         // send out an ACK on each of the hopping channels, required by CX10 transmitter
         for (uint8_t ii = 0; ii < RF_CHANNEL_COUNT; ++ii) {
             nrf24->setChannel(rfChannels[ii]);
-            XN297_WritePayload(payload, payloadSize, txAddrXN297, nrf24);
+            XN297_WritePayload(payload, payloadSize, txAddr, nrf24);
             nrf24->setTxMode();// enter transmit mode to send the packet
             // wait for the ACK packet to send before changing channel
             while (!(nrf24->readReg(NRF24L01_17_FIFO_STATUS) & BV(NRF24L01_17_FIFO_STATUS_TX_EMPTY))) {
@@ -205,29 +200,27 @@ NRF24_RX::received_e CX10::dataReceived()
         }
         nrf24->setRxMode();// re-enter receive mode after sending ACKs
         if (ackCount > ACK_TO_SEND_COUNT) {
+            timeOfLastHop = micros();
             nrf24->setChannel(rfChannels[0]);
             // and go into data state to wait for first data packet
             protocolState = STATE_DATA;
         }
         break;
     case STATE_DATA:
-        timeNowUs = micros();
         // read the payload, processing of payload is deferred
         if (nrf24->readPayloadIfAvailable(payload, payloadSize + CRC_LEN)) {
-            XN297_UnscramblePayload(payload, payloadSize, rxAddr);
+            payloadCrc = XN297_UnscramblePayload(payload, payloadSize, rxAddr);
             hopToNextChannel();
-            timeOfLastHop = timeNowUs;
             ret = RECEIVED_DATA;
         }
-        if (timeNowUs > timeOfLastHop + hopTimeout) {
+        if (micros() > timeOfLastHop + hopTimeout) {
             hopToNextChannel();
-            timeOfLastHop = timeNowUs;
         }
     }
     return ret;
 }
 
-void CX10::begin(int _protocol, const uint8_t* nrf24_id)
+void CX10::begin(int _protocol, const uint8_t *nrf24_id)
 {
     protocol = protocol;
     protocolState = STATE_BIND;
@@ -235,24 +228,17 @@ void CX10::begin(int _protocol, const uint8_t* nrf24_id)
     rfChannelCount = RF_CHANNEL_COUNT;
     payloadSize = (protocol == NRF24_RX::CX10) ? CX10_PROTOCOL_PAYLOAD_SIZE : CX10A_PROTOCOL_PAYLOAD_SIZE;
 
-    nrf24->initialize(0); // sets PWR_UP, no CRC - hardware CRC not used for XN297
+    NRF24_RX::initialize(0); // sets PWR_UP, no CRC - hardware CRC not used for XN297
 
-    nrf24->writeReg(NRF24L01_01_EN_AA, 0); // No auto acknowledgment
-    nrf24->writeReg(NRF24L01_02_EN_RXADDR, BV(NRF24L01_02_EN_RXADDR_ERX_P0));  // Enable data pipe 0 only
-    nrf24->writeReg(NRF24L01_03_SETUP_AW, NRF24L01_03_SETUP_AW_5BYTES);   // 5-byte RX/TX address
     nrf24->setChannel(RF_BIND_CHANNEL);
 
     nrf24->writeReg(NRF24L01_06_RF_SETUP, NRF24L01_06_RF_SETUP_RF_DR_1Mbps | NRF24L01_06_RF_SETUP_RF_PWR_n12dbm);
     // RX_ADDR for pipes P2 to P5 are left at default values
     nrf24->flushRx();
-    nrf24->writeRegisterMulti(NRF24L01_10_TX_ADDR, txAddrXN297, RX_ADDR_LEN);
-    memcpy(rxAddr, rxAddrXN297, RX_ADDR_LEN);
+    nrf24->writeRegisterMulti(NRF24L01_10_TX_ADDR, txAddr, RX_ADDR_LEN);
     nrf24->writeRegisterMulti(NRF24L01_0A_RX_ADDR_P0, rxAddr, RX_ADDR_LEN);
 
-    nrf24->writeReg(NRF24L01_08_OBSERVE_TX, 0x00);
     nrf24->writeReg(NRF24L01_11_RX_PW_P0, payloadSize + CRC_LEN); // payload + 2 bytes CRC
-
-    nrf24->writeReg(NRF24L01_1C_DYNPD, 0x00); // Disable dynamic payload length on all pipes
 
     nrf24->setRxMode(); // enter receive mode to start listening for packets
 }

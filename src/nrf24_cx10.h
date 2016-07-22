@@ -14,7 +14,7 @@
  * GNU General Public License, <http://www.gnu.org/licenses/>, for
  * more details.
  *
- * All text above and this condition must be included in any redistribution.
+ * All the above text and this condition must be included in any redistribution.
  */
 
 #pragma once
@@ -30,28 +30,26 @@ private:
     // radio channels for frequency hopping
     enum {RF_BIND_CHANNEL = 2};
     enum {RF_CHANNEL_COUNT = 4};
-    uint8_t rfChannels[RF_CHANNEL_COUNT];
-    enum {STATE_BIND = 0, STATE_ACK, STATE_DATA};
+    uint8_t rfChannelArray[RF_CHANNEL_COUNT];
+    enum {STATE_BIND = 0, STATE_ACK = 1, STATE_DATA = 2};
     enum {CRC_LEN = 2};
-    uint8_t rxAddr[RX_ADDR_LEN];
     enum {RATE_LOW = 0, RATE_MID = 1, RATE_HIGH = 2};
+    enum {RX_ADDR_LEN = 5};
+    static const uint8_t rxAddr[RX_ADDR_LEN];
+    static const uint8_t txAddr[RX_ADDR_LEN];
 public:
     enum {RC_CHANNEL_COUNT = 9};
 private:
-    static const uint8_t txAddrXN297[RX_ADDR_LEN];
-    static const uint8_t rxAddrXN297[RX_ADDR_LEN];
-private:
-    static uint16_t convertToPwmUnsigned(const uint8_t* pVal);
+    static uint16_t convertToPwmUnsigned(const uint8_t *pVal);
 protected:
     virtual void setHoppingChannels(void);
-    virtual void setBound(void);
-    virtual void hopToNextChannel(void);
     virtual bool checkBindPacket(void);
+    virtual void setBound(void);
 public:
     virtual ~CX10();
-    CX10(NRF24L01* nrf24);
+    CX10(NRF24L01 *nrf24);
     CX10(uint8_t _ce_pin, uint8_t _csn_pin);
-    virtual void begin(int protocol, const uint8_t* nrf24_id);
+    virtual void begin(int protocol, const uint8_t *nrf24_id = 0);
     virtual void setRcDataFromPayload(uint16_t *rcData) const;
     virtual received_e dataReceived(void);
 };

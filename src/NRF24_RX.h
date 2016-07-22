@@ -14,7 +14,7 @@
  * GNU General Public License, <http://www.gnu.org/licenses/>, for
  * more details.
  *
- * All text above and this condition must be included in any redistribution.
+ * All the above text and this condition must be included in any redistribution.
  */
 
 #pragma once
@@ -86,24 +86,22 @@ protected:
     uint8_t protocolState;
     uint8_t rfChannelCount;
     uint8_t rfChannelIndex;
+    uint8_t *rfChannels;
     uint32_t hopTimeout;
     uint32_t timeOfLastHop;
     uint8_t payload[NRF24L01_MAX_PAYLOAD_SIZE+32];
     uint16_t payloadCrc;
     uint8_t payloadSize;
-    enum {RX_ADDR_LEN = 5};
-    uint8_t rxAddr[RX_ADDR_LEN];
 protected:
+    virtual void hopToNextChannel(void);
     virtual void setHoppingChannels(void) = 0;
-    virtual void setBound(void) = 0;
-    virtual void hopToNextChannel(void) = 0;
     virtual bool checkBindPacket(void) = 0;
 public:
     virtual ~NRF24_RX();
-    NRF24_RX(NRF24L01* _nrf24);
+    NRF24_RX(NRF24L01 *_nrf24);
     NRF24_RX(uint8_t ce_pin, uint8_t csn_pin);
     void initialize(uint8_t baseConfig);
-    virtual void begin(int protocol, const uint8_t* nrf24_id = 0) = 0;
+    virtual void begin(int protocol, const uint8_t *nrf24_id = 0) = 0;
     virtual void setRcDataFromPayload(uint16_t *rcData) const = 0;
     virtual received_e dataReceived(void) = 0;
     // debugging and instrumentation functions

@@ -14,7 +14,7 @@
  * GNU General Public License, <http://www.gnu.org/licenses/>, for
  * more details.
  *
- * All text above and this condition must be included in any redistribution.
+ * All the above text and this condition must be included in any redistribution.
  */
 
 // This file borrows heavily from project Deviation,
@@ -81,7 +81,7 @@ uint16_t XN297_UnscramblePayload(uint8_t *data, int len, const uint8_t *rxAddr)
     return crc;
 }
 
-uint8_t XN297_WritePayload(uint8_t *data, int len, const uint8_t *rxAddr, NRF24L01* nrf24)
+uint8_t XN297_WritePayload(uint8_t *data, int len, const uint8_t *rxAddr, NRF24L01 *nrf24)
 {
     uint8_t packet[NRF24L01_MAX_PAYLOAD_SIZE + RX_TX_ADDR_LEN + 2]; // 2 bytes for CRC
     uint16_t crc = 0xb5d2;

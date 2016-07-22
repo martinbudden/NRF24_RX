@@ -27,8 +27,8 @@ uint16_t nrf24RcData[rcChannelCount];
 
 
 // servo data
-static const int SERVO1_PIN = 14; // analog pin 0
-static const int SERVO2_PIN = 15; // analog pin 1
+static const int SERVO1_PIN = A0; // analog pin 0
+static const int SERVO2_PIN = A1; // analog pin 1
 Servo servo1; 
 Servo servo2; 
 

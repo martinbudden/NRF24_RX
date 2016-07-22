@@ -14,7 +14,7 @@
  * GNU General Public License, <http://www.gnu.org/licenses/>, for
  * more details.
  *
- * All text above and this condition must be included in any redistribution.
+ * All the above text and this condition must be included in any redistribution.
  */
 
 #pragma once
@@ -29,15 +29,18 @@ private:
     uint8_t txId[TX_ID_LEN]; // transmitter ID, sent in bind packet
     // radio channels for frequency hopping
     enum {RF_CHANNEL_COUNT = 4};
-    uint8_t rfChannels[RF_CHANNEL_COUNT];
-    enum {STATE_BIND = 0, STATE_DATA};
+    uint8_t rfChannelArray[RF_CHANNEL_COUNT];
     enum {CRC_LEN = 2};
     enum {PAYLOAD_SIZE = 20};
+    enum {STATE_BIND_0 = 0, STATE_BIND_1, STATE_DATA};
+    enum {RX_ADDR_LEN = 5};
+    static const uint8_t rxAddr[RX_ADDR_LEN];
+    uint32_t timeOfLastPacket;
 public:
     enum {RC_CHANNEL_COUNT = 14};
 private:
     static uint16_t convertToPwm(uint8_t val, int16_t _min, int16_t _max);
-    bool crcOK(uint16_t crc) const;
+    bool crcOK(void) const;
     bool checkSumOK(void) const;
 protected:
     virtual void setHoppingChannels(void);
@@ -46,9 +49,9 @@ protected:
     virtual bool checkBindPacket(void);
 public:
     virtual ~H8_3D();
-    H8_3D(NRF24L01* nrf24);
+    H8_3D(NRF24L01 *nrf24);
     H8_3D(uint8_t _ce_pin, uint8_t _csn_pin);
-    virtual void begin(int protocol, const uint8_t* nrf24_id);
+    virtual void begin(int protocol, const uint8_t *nrf24_id = 0);
     virtual void setRcDataFromPayload(uint16_t *rcData) const;
     virtual received_e dataReceived(void);
 };
