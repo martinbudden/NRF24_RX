@@ -28,7 +28,7 @@
 
 #include <NRF24.h>
 #include "NRF24_RX.h"
-#include "nrf24_cx10.h"
+#include "nrf24_rx_cx10.h"
 #include "xn297.h"
 
 /*
@@ -66,30 +66,49 @@
 #define CX10A_PROTOCOL_PAYLOAD_SIZE 19
 #define ACK_TO_SEND_COUNT 8
 
-const uint8_t CX10::txAddr[CX10::RX_ADDR_LEN] = {0x55, 0x0F, 0x71, 0x0C, 0x00}; // converted XN297 address, 0xC710F55 (28 bit)
-const uint8_t CX10::rxAddr[CX10::RX_ADDR_LEN] = {0x49, 0x26, 0x87, 0x7d, 0x2f}; // converted XN297 address
+const uint8_t CX10_RX::txAddr[CX10_RX::RX_ADDR_LEN] = {0x55, 0x0F, 0x71, 0x0C, 0x00}; // converted XN297 address, 0xC710F55 (28 bit)
+const uint8_t CX10_RX::rxAddr[CX10_RX::RX_ADDR_LEN] = {0x49, 0x26, 0x87, 0x7d, 0x2f}; // converted XN297 address
 
+#define CX10_PROTOCOL_HOP_TIMEOUT  1500 // 1.5ms
+#define CX10A_PROTOCOL_HOP_TIMEOUT 6500 // 6.5ms
 
-CX10::CX10(NRF24L01 *_nrf24)
+CX10_RX::~CX10_RX() {}
+
+CX10_RX::CX10_RX(NRF24L01 *_nrf24)
     : NRF24_RX(_nrf24)
 {
     rfChannels = rfChannelArray;
 }
 
-CX10::CX10(uint8_t _ce_pin, uint8_t _csn_pin)
+CX10_RX::CX10_RX(uint8_t _ce_pin, uint8_t _csn_pin)
     : NRF24_RX(_ce_pin, _csn_pin)
 {
     rfChannels = rfChannelArray;
 }
 
-uint16_t CX10::convertToPwmUnsigned(const uint8_t *pVal)
+/*
+ * Returns true if it is a bind packet.
+ */
+bool CX10_RX::checkBindPacket(void)
+{
+    if (payload[0] == 0xaa) { // 10101010
+        txId[0] = payload[1];
+        txId[1] = payload[2];
+        txId[2] = payload[3];
+        txId[3] = payload[4];
+        return true;
+    }
+    return false;
+}
+
+uint16_t CX10_RX::convertToPwmUnsigned(const uint8_t *pVal)
 {
     uint16_t ret = (*(pVal + 1)) & 0x7f; // mask out top bit which is used for a flag for the rudder
     ret = (ret << 8) | *pVal;
     return ret;
 }
 
-void CX10::setRcDataFromPayload(uint16_t *rcData) const
+void CX10_RX::setRcDataFromPayload(uint16_t *rcData) const
 {
     const uint8_t offset = (protocol == NRF24_RX::CX10) ? 0 : 4;
     rcData[NRF24_ROLL] = (PWM_RANGE_MAX + PWM_RANGE_MIN) - convertToPwmUnsigned(&payload[5 + offset]);  // aileron
@@ -116,38 +135,27 @@ void CX10::setRcDataFromPayload(uint16_t *rcData) const
 }
 
 // The hopping channels are determined by the txId
-void CX10::setHoppingChannels(void)
+void CX10_RX::setHoppingChannels(void)
 {
+    rfChannelIndex = 0;
     rfChannels[0] = 0x03 + (txId[0] & 0x0F);
     rfChannels[1] = 0x16 + (txId[0] >> 4);
     rfChannels[2] = 0x2D + (txId[1] & 0x0F);
     rfChannels[3] = 0x40 + (txId[1] >> 4);
 }
 
-/*
- * Returns true if it is a bind packet.
- */
-bool CX10::checkBindPacket(void)
+bool CX10_RX::readPayloadIfAvailable(void)
 {
-    if (payload[0] == 0xaa) { // 10101010
-        txId[0] = payload[1];
-        txId[1] = payload[2];
-        txId[2] = payload[3];
-        txId[3] = payload[4];
-        return true;
+    if (nrf24->readPayloadIfAvailable(payload, payloadSize + CRC_LEN)) {
+        const uint16_t crc = XN297_UnscramblePayload(payload, payloadSize, rxAddr);
+        if (crcOK(crc)) {
+            return true;
+        }
     }
     return false;
 }
 
-void CX10::setBound(void)
-{
-    timeOfLastHop = micros();
-    setHoppingChannels();
-    rfChannelIndex = 0;
-    nrf24->setChannel(rfChannels[0]);
-}
-
-NRF24_RX::received_e CX10::dataReceived()
+NRF24_RX::received_e CX10_RX::dataReceived()
 {
     static uint8_t ackCount = 0;
     NRF24_RX::received_e ret = RECEIVED_NONE;
@@ -155,8 +163,7 @@ NRF24_RX::received_e CX10::dataReceived()
 
     switch (protocolState) {
     case STATE_BIND:
-        if (nrf24->readPayloadIfAvailable(payload, payloadSize + CRC_LEN)) {
-            payloadCrc = XN297_UnscramblePayload(payload, payloadSize, rxAddr);
+        if (readPayloadIfAvailable()) {
             const bool bindPacket = checkBindPacket();
             if (bindPacket) {
                 // set the hopping channels as determined by the txId received in the bind packet
@@ -169,6 +176,7 @@ NRF24_RX::received_e CX10::dataReceived()
         break;
     case STATE_ACK:
         // transmit an ACK packet
+    Serial.println(ackCount);
         ++ackCount;
         totalDelayUs = 0;
         // send out an ACK on the bind channel, required by deviationTx
@@ -194,7 +202,7 @@ NRF24_RX::received_e CX10::dataReceived()
                 totalDelayUs += fifoDelayUs;
             }
         }
-        static const int delayBetweenPacketsUs = 1000;
+        static const int delayBetweenPacketsUs = 2000;
         if (totalDelayUs < delayBetweenPacketsUs) {
             delayMicroseconds(delayBetweenPacketsUs - totalDelayUs);
         }
@@ -208,8 +216,7 @@ NRF24_RX::received_e CX10::dataReceived()
         break;
     case STATE_DATA:
         // read the payload, processing of payload is deferred
-        if (nrf24->readPayloadIfAvailable(payload, payloadSize + CRC_LEN)) {
-            payloadCrc = XN297_UnscramblePayload(payload, payloadSize, rxAddr);
+        if (readPayloadIfAvailable()) {
             hopToNextChannel();
             ret = RECEIVED_DATA;
         }
@@ -220,15 +227,15 @@ NRF24_RX::received_e CX10::dataReceived()
     return ret;
 }
 
-void CX10::begin(int _protocol, const uint8_t *nrf24_id)
+void CX10_RX::begin(int _protocol, const uint32_t *nrf24_id)
 {
-    protocol = protocol;
+    protocol = _protocol;
     protocolState = STATE_BIND;
-    hopTimeout = 5000; // 5ms
     rfChannelCount = RF_CHANNEL_COUNT;
     payloadSize = (protocol == NRF24_RX::CX10) ? CX10_PROTOCOL_PAYLOAD_SIZE : CX10A_PROTOCOL_PAYLOAD_SIZE;
+    hopTimeout = (protocol == NRF24_RX::CX10) ? CX10_PROTOCOL_HOP_TIMEOUT : CX10A_PROTOCOL_HOP_TIMEOUT;
 
-    NRF24_RX::initialize(0); // sets PWR_UP, no CRC - hardware CRC not used for XN297
+    NRF24_RX::initialize(0, NRF24L01_06_RF_SETUP_RF_DR_1Mbps); // sets PWR_UP, no CRC - hardware CRC not used for XN297
 
     nrf24->setChannel(RF_BIND_CHANNEL);
 

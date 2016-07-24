@@ -70,8 +70,7 @@ public:
         SYMA_X5C,
         CX10,
         CX10A,
-        H8_3D_H20,
-        H8_3D_DEVIATION,
+        H8_3D,
         PROTOCOL_COUNT
     } protocol_e;
 
@@ -80,6 +79,7 @@ public:
         RECEIVED_BIND = 1,
         RECEIVED_DATA = 2
     } received_e;
+    static const char *protocolString[PROTOCOL_COUNT];
 protected:
     NRF24L01* nrf24;
     uint8_t protocol;
@@ -93,22 +93,23 @@ protected:
     uint16_t payloadCrc;
     uint8_t payloadSize;
 protected:
+    bool crcOK(uint16_t crc) const;
     virtual void hopToNextChannel(void);
-    virtual void setHoppingChannels(void) = 0;
     virtual bool checkBindPacket(void) = 0;
 public:
     virtual ~NRF24_RX();
     NRF24_RX(NRF24L01 *_nrf24);
     NRF24_RX(uint8_t ce_pin, uint8_t csn_pin);
-    void initialize(uint8_t baseConfig);
-    virtual void begin(int protocol, const uint8_t *nrf24_id = 0) = 0;
+    void initialize(uint8_t baseConfig, uint8_t rfDataRate);
+    virtual void begin(int protocol, const uint32_t *nrf24_id = 0) = 0;
     virtual void setRcDataFromPayload(uint16_t *rcData) const = 0;
     virtual received_e dataReceived(void) = 0;
-    // debugging and instrumentation functions
+// debugging and instrumentation functions
     const uint8_t *payloadPtr(void) const {return payload;}
     int getPayloadSize(void) const {return payloadSize;}
     uint16_t getPayloadCrc(void) const {return payloadCrc;}
     int getChannel(void) const {return nrf24->getChannel();}
-    uint8_t getProtocol(void)const {return protocol;}
+    uint8_t getProtocol(void) const {return protocol;}
+    const char *getProtocolString(void) const {return protocolString[protocol];}
 };
 
