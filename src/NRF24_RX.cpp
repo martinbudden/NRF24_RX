@@ -24,6 +24,16 @@
 
 #include "NRF24_RX.h"
 
+const char *NRF24_RX::protocolString[NRF24_RX::PROTOCOL_COUNT] = {
+    "V202 250Kbps",
+    "V202 1Mbps",
+    "Syma X",
+    "Syma X5C",
+    "CX10",
+    "CX10A",
+    "H8_3D"
+};
+
 NRF24_RX::~NRF24_RX() {}
 
 NRF24_RX::NRF24_RX(NRF24L01 *_nrf24)
@@ -33,6 +43,17 @@ NRF24_RX::NRF24_RX(uint8_t ce_pin, uint8_t csn_pin)
 {
     static NRF24L01 nrf24L01(ce_pin, csn_pin);
     nrf24 = &nrf24L01;
+}
+
+bool NRF24_RX::crcOK(uint16_t crc) const
+{
+    if (payload[payloadSize] != (crc >> 8)) {
+        return false;
+    }
+    if (payload[payloadSize + 1] != (crc & 0xff)) {
+        return false;
+    }
+    return true;
 }
 
 void NRF24_RX::hopToNextChannel(void)
@@ -45,9 +66,9 @@ void NRF24_RX::hopToNextChannel(void)
     nrf24->setChannel(rfChannels[rfChannelIndex]);
 }
 
-void NRF24_RX::initialize(uint8_t baseConfig)
+void NRF24_RX::initialize(uint8_t baseConfig, uint8_t rfDataRate)
 {
-    nrf24->initialize(baseConfig);
+    nrf24->initialize(baseConfig, rfDataRate);
 
     nrf24->writeReg(NRF24L01_01_EN_AA, 0); // No auto acknowledgment
     nrf24->writeReg(NRF24L01_02_EN_RXADDR, BV(NRF24L01_02_EN_RXADDR_ERX_P0));

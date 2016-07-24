@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include "NRF24_RX.h"
 
-class CX10 : public NRF24_RX {
+class CX10_RX : public NRF24_RX {
 private:
     enum {TX_ID_LEN = 4};
     uint8_t txId[TX_ID_LEN]; // transmitter ID, sent in bind packet
@@ -41,15 +41,15 @@ public:
     enum {RC_CHANNEL_COUNT = 9};
 private:
     static uint16_t convertToPwmUnsigned(const uint8_t *pVal);
+    bool readPayloadIfAvailable(void);
 protected:
     virtual void setHoppingChannels(void);
     virtual bool checkBindPacket(void);
-    virtual void setBound(void);
 public:
-    virtual ~CX10();
-    CX10(NRF24L01 *nrf24);
-    CX10(uint8_t _ce_pin, uint8_t _csn_pin);
-    virtual void begin(int protocol, const uint8_t *nrf24_id = 0);
+    virtual ~CX10_RX();
+    CX10_RX(NRF24L01 *nrf24);
+    CX10_RX(uint8_t _ce_pin, uint8_t _csn_pin);
+    virtual void begin(int protocol, const uint32_t *nrf24rx_id = 0);
     virtual void setRcDataFromPayload(uint16_t *rcData) const;
     virtual received_e dataReceived(void);
 };
